@@ -7,7 +7,15 @@ API_KEY = os.environ.get("API_KEY")
 TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
 
 # This converts your comma-separated string into a list of IDs
-TELEGRAM_CHAT_IDS = os.environ.get("TELEGRAM_CHAT_IDS").split(',')
+TELEGRAM_CHAT_IDS = os.environ.get("TELEGRAM_CHAT_IDS").split(',')# Fetch the secret safely
+raw_ids = os.environ.get("TELEGRAM_CHAT_IDS")
+
+# Stop the script gracefully if the secret is missing, rather than throwing a hard error
+if not raw_ids:
+    print("Error: TELEGRAM_CHAT_IDS secret is missing or empty! Please check your GitHub Secrets and YAML file.")
+    sys.exit(1)
+
+TELEGRAM_CHAT_IDS = raw_ids.split(',')
 headers = {
     "Authorization": f"Bearer {API_KEY}",
     "Content-Type": "application/json"
