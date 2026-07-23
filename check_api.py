@@ -35,7 +35,7 @@ try:
         # Telegram API endpoint for sending a message
         tg_url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
         tg_payload = {
-            "chat_id": TELEGRAM_CHAT_ID,
+            "chat_id": TELEGRAM_CHAT_IDS,
             "text": message,
             "parse_mode": "Markdown"
         }
