@@ -21,7 +21,7 @@ data = {
 try:
     response = requests.post(API_URL, headers=headers, json=data)
     
-    if response.status_code != 200:
+    if response.status_code == 200:
         message = "🚨 *ALERT:* The Free Fabel 5 API on cc.freemodel.dev is working again!"
         
         # Telegram API endpoint for sending a message
