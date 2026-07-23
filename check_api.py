@@ -5,8 +5,9 @@ import sys
 API_URL = "https://cc.freemodel.dev/v1/chat/completions" 
 API_KEY = os.environ.get("API_KEY")
 TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
-TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
 
+# This converts your comma-separated string into a list of IDs
+TELEGRAM_CHAT_IDS = os.environ.get("TELEGRAM_CHAT_IDS").split(',')
 headers = {
     "Authorization": f"Bearer {API_KEY}",
     "Content-Type": "application/json"
