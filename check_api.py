@@ -2,32 +2,40 @@ import requests
 import os
 import sys
 
-API_URL = "YOUR_FREEMODEL_API_ENDPOINT"
+API_URL = "https://cc.freemodel.dev/v1/chat/completions" 
 API_KEY = os.environ.get("API_KEY")
-WEBHOOK_URL = os.environ.get("WEBHOOK_URL") # E.g., a Discord or Telegram Webhook
+TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
+TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
 
 headers = {
     "Authorization": f"Bearer {API_KEY}",
     "Content-Type": "application/json"
 }
 
-# Example payload - adjust based on what the API requires
 data = {
-    "prompt": "test",
-    "model": "free-fabel-5"
+    "model": "free-fabel-5",
+    "messages": [{"role": "user", "content": "ping"}],
+    "max_tokens": 5
 }
 
 try:
     response = requests.post(API_URL, headers=headers, json=data)
     
-    # Check if the response indicates the suspension is lifted (e.g., a 200 OK)
     if response.status_code == 200:
-        message = "🚨 Good news! The Free Fabel 5 API is working again."
-        requests.post(WEBHOOK_URL, json={"content": message})
-        print("API is up. Notification sent.")
+        message = "🚨 *ALERT:* The Free Fabel 5 API on cc.freemodel.dev is working again!"
+        
+        # Telegram API endpoint for sending a message
+        tg_url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
+        tg_payload = {
+            "chat_id": TELEGRAM_CHAT_ID,
+            "text": message,
+            "parse_mode": "Markdown"
+        }
+        
+        requests.post(tg_url, json=tg_payload)
+        print("API is up. Telegram notification sent.")
         sys.exit(0)
     else:
-        # If still suspended (e.g., 403 or specific error message), fail silently
         print(f"Still suspended or error: {response.status_code} - {response.text}")
         sys.exit(0)
         
