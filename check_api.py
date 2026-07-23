@@ -6,8 +6,7 @@ API_URL = "https://cc.freemodel.dev/v1/chat/completions"
 API_KEY = os.environ.get("API_KEY")
 TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
 
-# This converts your comma-separated string into a list of IDs
-TELEGRAM_CHAT_IDS = os.environ.get("TELEGRAM_CHAT_IDS").split(',')# Fetch the secret safely
+
 raw_ids = os.environ.get("TELEGRAM_CHAT_IDS")
 
 # Stop the script gracefully if the secret is missing, rather than throwing a hard error
