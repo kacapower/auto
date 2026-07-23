@@ -11,11 +11,11 @@ if not raw_ids:
 
 TELEGRAM_CHAT_IDS = [cid.strip() for cid in raw_ids.split(',') if cid.strip()]
 tg_url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
-message = "✅ TEST: This is a test message from check_api.py's Telegram test script."
+message = "✅ TEST: This is a test message from the Telegram test script."
 
 all_success = True
 for chat_id in TELEGRAM_CHAT_IDS:
-    tg_payload = {"chat_id": chat_id, "text": message, "parse_mode": "Markdown"}
+    tg_payload = {"chat_id": chat_id, "text": message}
     try:
         tg_response = requests.post(tg_url, json=tg_payload, timeout=10)
         if tg_response.status_code == 200:
