@@ -26,6 +26,6 @@ jobs:
         env:
           TOMORROW_API_KEY: ${{ secrets.TOMORROW_API_KEY }}
           WEATHERAPI_KEY: ${{ secrets.WEATHERAPI_KEY }}
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           TELEGRAM_CHAT_IDS: ${{ secrets.TELEGRAM_CHAT_IDS }}
         run: python weather_alert.py
