@@ -1,0 +1,31 @@
+name: Rain Alert
+
+on:
+  schedule:
+    # Every 20 minutes. GitHub Actions cron is best-effort — expect a few
+    # minutes of jitter/delay, especially on the free tier.
+    - cron: '*/20 * * * *'
+  workflow_dispatch: {}  # lets you trigger it manually from the Actions tab to test
+
+jobs:
+  check-weather:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run weather check
+        env:
+          TOMORROW_API_KEY: ${{ secrets.TOMORROW_API_KEY }}
+          WEATHERAPI_KEY: ${{ secrets.WEATHERAPI_KEY }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_IDS: ${{ secrets.TELEGRAM_CHAT_IDS }}
+        run: python weather_alert.py
