@@ -76,7 +76,7 @@ TOMORROW_INTENSITY_THRESHOLD = 0.1  # mm/hr
 WEATHERAPI_PROB_THRESHOLD = 40      # percent
 
 # 10km sampling ring (approximate offsets in degrees)
-RADIUS_KM = 10
+RADIUS_KM = 7
 DEG_LAT_PER_KM = 1 / 111.0
 DEG_LON_PER_KM = 1 / (111.320 * math.cos(math.radians(LAT)))
 
