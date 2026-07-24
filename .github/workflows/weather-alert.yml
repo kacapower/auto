@@ -22,6 +22,11 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
+      - name: Debug token length
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+        run: echo "Token length is ${#TELEGRAM_BOT_TOKEN}"
+
       - name: Run weather check
         env:
           TOMORROW_API_KEY: ${{ secrets.TOMORROW_API_KEY }}
