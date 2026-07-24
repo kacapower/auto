@@ -437,7 +437,7 @@ def main():
             send_telegram(
                 "🌦️ Heads up: no rain expected right at your exact location in "
                 f"the next 2 hours, but rain is showing up to the {desc} "
-                "(~10km away). Keep an eye out."
+                "~7km away. Keep an eye out."
             )
         # else: stay completely silent, as originally specified
         return
@@ -469,7 +469,7 @@ def main():
     if rain_count >= 2:
         message += (
             "\n🌧️ Rain likely right at your location "
-            "(confirmed by more than 1 source) — grab an umbrella."
+            " — grab an umbrella."
         )
 
     # Also mention the 10km sweep for context, it's cheap (Open-Meteo only)
@@ -477,9 +477,9 @@ def main():
         hits = open_meteo_10km_sweep()
         if hits:
             desc = describe_sweep_hits(hits)
-            message += f"\n(Also detected to the {desc}, ~10km away.)"
+            message += f"\n(Also detected to the {desc}, ~7km away.)"
     except Exception as e:
-        print(f"[warn] 10km sweep failed: {e}", file=sys.stderr)
+        print(f"[warn] 7km sweep failed: {e}", file=sys.stderr)
 
     send_telegram(message)
 
