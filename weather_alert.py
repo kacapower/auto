@@ -74,7 +74,7 @@ REQUEST_TIMEOUT = 15
 TOMORROW_API_KEY = os.environ.get("TOMORROW_API_KEY", "")
 WEATHERAPI_KEY = os.environ.get("WEATHERAPI_KEY", "")
 
-TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_TOKEN")
+TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_IDS = [
     cid.strip() for cid in os.environ.get("TELEGRAM_CHAT_IDS", "").split(",") if cid.strip()
 ]
