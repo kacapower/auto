@@ -76,7 +76,7 @@ TOMORROW_INTENSITY_THRESHOLD = 0.1  # mm/hr
 WEATHERAPI_PROB_THRESHOLD = 40      # percent
 
 # 10km sampling ring (approximate offsets in degrees)
-RADIUS_KM = 7
+RADIUS_KM = 3
 DEG_LAT_PER_KM = 1 / 111.0
 DEG_LON_PER_KM = 1 / (111.320 * math.cos(math.radians(LAT)))
 
@@ -437,7 +437,7 @@ def main():
             send_telegram(
                 "🌦️ Heads up: no rain expected right at your exact location in "
                 f"the next 2 hours, but rain is showing up to the {desc} "
-                "~7km away. Keep an eye out."
+                "~3km away. Keep an eye out."
             )
         # else: stay completely silent, as originally specified
         return
@@ -477,9 +477,9 @@ def main():
         hits = open_meteo_10km_sweep()
         if hits:
             desc = describe_sweep_hits(hits)
-            message += f"\n(Also detected to the {desc}, ~7km away.)"
+            message += f"\nAlso detected to the {desc}, ~3km away."
     except Exception as e:
-        print(f"[warn] 7km sweep failed: {e}", file=sys.stderr)
+        print(f"[warn] 3km sweep failed: {e}", file=sys.stderr)
 
     send_telegram(message)
 
