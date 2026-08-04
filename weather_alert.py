@@ -435,7 +435,7 @@ def main():
         if hits:
             desc = describe_sweep_hits(hits)
             send_telegram(
-                "🌦️ Heads up: no rain expected right at your exact location in "
+                "🌦️ Heads up:  "
                 f"the next 2 hours, but rain is showing up to the {desc} "
                 "~3km away. Keep an eye out."
             )
@@ -453,11 +453,11 @@ def main():
             print(f"[warn] 15-min check failed: {e}", file=sys.stderr)
             imminent = False
         if imminent:
-            tier_text = "⏱️ Expected within the next 15 minutes."
+            tier_text = "⏱️  15 minutes."
         else:
-            tier_text = "⏱️ Expected within the next hour."
+            tier_text = "⏱️  next hour."
     elif hour1_triggered:
-        tier_text = "⏱️ Expected within the next 2 hours (not immediate)."
+        tier_text = "⏱️  2 hours (not immediate)."
     else:
         tier_text = ""  # shouldn't happen given rain_count > 0, but just in case
 
@@ -468,7 +468,7 @@ def main():
 
     if rain_count >= 2:
         message += (
-            "\n🌧️ Rain likely right at your location "
+            "\n🌧️ Rain "
             " — grab an umbrella."
         )
 
