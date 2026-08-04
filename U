@@ -1,0 +1,47 @@
+name: YouTube New Video Monitor
+
+on:
+  schedule:
+    - cron: "*/30 * * * *"   # every 30 minutes
+  workflow_dispatch: {}       # allows manual "Run workflow" trigger
+
+permissions:
+  contents: write
+
+concurrency:
+  group: youtube-monitor
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install requests
+
+      - name: Run video check
+        env:
+          APIFY_API_TOKEN: ${{ secrets.APIFY_API_TOKEN }}
+          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          TELEGRAM_CHAT_IDS: ${{ secrets.TELEGRAM_CHAT_IDS }}
+        run: python check_new_videos.py
+
+      - name: Commit updated state file
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          if ! git diff --quiet -- last_seen.json; then
+            git add last_seen.json
+            git commit -m "Update last seen video state [skip ci]"
+            git push
+          else
+            echo "No state changes to commit."
+          fi
