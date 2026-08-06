@@ -272,7 +272,7 @@ def describe_sweep_hits(hits):
     for h in hits:
         place = reverse_geocode(h["lat"], h["lon"])
         if place:
-            parts.append(f"/n{h['direction']} - {place}")
+            parts.append(f"{h['direction']} - {place}")
         else:
             parts.append(h["direction"])
     return ", ".join(parts)
