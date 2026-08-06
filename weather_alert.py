@@ -424,7 +424,7 @@ def main():
     print(f"Results: {results} -> {rain_count}/3 predict rain", file=sys.stderr)
     print(f"Hourly breakdown: {hourly_breakdowns}", file=sys.stderr)
 
-    if rain_count == 1:
+    if rain_count == 0:
         # Normally silent, unless the 10km sweep finds something nearby.
         try:
             hits = open_meteo_10km_sweep()
@@ -477,7 +477,7 @@ def main():
         hits = open_meteo_10km_sweep()
         if hits:
             desc = describe_sweep_hits(hits)
-            message += f"\nA {desc}, ~3km away."
+            message += f"\n {desc}"
     except Exception as e:
         print(f"[warn] 3km sweep failed: {e}", file=sys.stderr)
 
