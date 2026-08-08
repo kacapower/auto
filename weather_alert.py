@@ -265,9 +265,9 @@ def reverse_geocode(lat, lon):
         return None
 
 
-def describe_sweep_hits(hits):
-    """Turns sweep hits into a human-readable string like
-    'North (near Bhinga), East'."""
+"""def describe_sweep_hits(hits):
+    Turns sweep hits into a human-readable string like
+    'North (near Bhinga), East'.
     parts = []
     for h in hits:
         place = reverse_geocode(h["lat"], h["lon"])
@@ -275,7 +275,7 @@ def describe_sweep_hits(hits):
             parts.append(f"{h['direction']} - {place}")
         else:
             parts.append(h["direction"])
-    return ", ".join(parts)
+    return ", ".join(parts)"""
 
 
 # ---------------------------------------------------------------------------
