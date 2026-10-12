@@ -1,0 +1,109 @@
+name: Keep Hugging Face Space Awake
+
+on:
+  schedule:
+    - cron: "0 */6 * * *" # Every 6 hours (UTC)
+  workflow_dispatch:
+    inputs:
+      retries:
+        description: "Retries per request"
+        required: false
+        default: "3"
+        type: string
+      request_timeout:
+        description: "Request timeout in seconds"
+        required: false
+        default: "30"
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: keep-kacapower-da-awake
+  cancel-in-progress: false
+
+jobs:
+  wake_space:
+    name: Wake kacapower/da
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    env:
+      SPACE_ID: kacapower/da
+      SPACE_URL: https://kacapower-da.hf.space/
+      # Add HF_TOKEN under GitHub repository Settings > Secrets and variables
+      # > Actions if the Space is private or requires authentication.
+      HF_TOKEN: ${{ secrets.HF_TOKEN }}
+      REQUEST_TIMEOUT: ${{ inputs.request_timeout || '30' }}
+      RETRIES: ${{ inputs.retries || '3' }}
+
+    steps:
+      - name: Wake and verify Space
+        shell: bash
+        run: |
+          set -uo pipefail
+
+          # Validate manual inputs so malformed values cannot break the loop.
+          [[ "$REQUEST_TIMEOUT" =~ ^[0-9]+$ ]] || REQUEST_TIMEOUT=30
+          [[ "$RETRIES" =~ ^[0-9]+$ ]] || RETRIES=3
+          (( REQUEST_TIMEOUT >= 5 && REQUEST_TIMEOUT <= 120 )) || REQUEST_TIMEOUT=30
+          (( RETRIES >= 1 && RETRIES <= 5 )) || RETRIES=3
+
+          USER_AGENT="Mozilla/5.0 (X11; Linux x86_64) GitHubActions-HF-Space-Waker"
+          STATUS="000"
+          SUCCESS=0
+
+          echo "## Hugging Face Space wake report" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Space: \`$SPACE_ID\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Checked at (UTC): $(date -u '+%Y-%m-%d %H:%M:%S')" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+
+          for attempt in $(seq 1 "$RETRIES"); do
+            echo "Attempt $attempt/$RETRIES: $SPACE_URL"
+
+            CURL_ARGS=(
+              --location
+              --user-agent "$USER_AGENT"
+              --connect-timeout 10
+              --max-time "$REQUEST_TIMEOUT"
+              --silent
+              --show-error
+              --output /dev/null
+              --write-out "%{http_code}"
+            )
+
+            if [[ -n "${HF_TOKEN:-}" ]]; then
+              CURL_ARGS+=(--header "Authorization: Bearer $HF_TOKEN")
+            fi
+
+            STATUS=$(curl "${CURL_ARGS[@]}" "$SPACE_URL" 2>/dev/null || true)
+            [[ "$STATUS" =~ ^[0-9]{3}$ ]] || STATUS="000"
+            echo "HTTP status: $STATUS"
+
+            # 2xx/3xx means the endpoint responded. 401/403 means the
+            # endpoint is reachable but the supplied credentials/access are
+            # not sufficient; report it rather than treating it as success.
+            if [[ "$STATUS" =~ ^[23][0-9][0-9]$ ]]; then
+              SUCCESS=1
+              break
+            fi
+
+            if (( attempt < RETRIES )); then
+              delay=$(( attempt * 10 ))
+              echo "Retrying in ${delay}s..."
+              sleep "$delay"
+            fi
+          done
+
+          echo "- Final HTTP status: \`$STATUS\`" >> "$GITHUB_STEP_SUMMARY"
+
+          if (( SUCCESS == 1 )); then
+            echo "- Result: **Endpoint responded successfully**" >> "$GITHUB_STEP_SUMMARY"
+            echo "Space endpoint responded successfully."
+          else
+            echo "- Result: **Wake check failed**" >> "$GITHUB_STEP_SUMMARY"
+            echo "The Space did not return a successful HTTP response after $RETRIES attempt(s)." >&2
+            echo "Check the Space status, visibility, and HF_TOKEN secret if it is private." >&2
+            exit 1
+          fi
