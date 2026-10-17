@@ -1,10 +1,9 @@
-
 name: Keep Hugging Face Space Awake & Daily PIN
 
 on:
   schedule:
-    - cron: "0 */6 * * *" # Every 6 hours (UTC)
-    - cron: "0 0 * * *"   # Daily at 00:00 UTC = 05:30 AM IST
+    - cron: "0 */6 * * *" # Every 6 hours (UTC) to keep Space awake
+    - cron: "0 0 * * *"   # Daily at 00:00 UTC = 05:30 AM IST for PIN calculation & Telegram notification
   workflow_dispatch:
     inputs:
       retries:
@@ -37,7 +36,8 @@ jobs:
       HF_TOKEN: ${{ secrets.HF_TOKEN }}
       REQUEST_TIMEOUT: ${{ inputs.request_timeout || '30' }}
       RETRIES: ${{ inputs.retries || '3' }}
-      VAULT_SECRET: ${{ secrets.VAULT_SECRET }}
+      VAULT_SECRET: ${{ secrets.VAULT_SECRET || 'Aspire777' }}
+      FRONTEND_URL: ${{ secrets.FRONTEND_URL || 'https://pw.free.je' }}
       TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
       TELEGRAM_CHAT_IDS: ${{ secrets.TELEGRAM_CHAT_IDS }}
 
@@ -59,7 +59,7 @@ jobs:
 
           {
             echo "## Hugging Face Space wake report"
-            echo "- Space: \`$SPACE_ID\`"
+            echo "- Space: `$SPACE_ID`"
             echo "- Checked at (UTC): $(date -u '+%Y-%m-%d %H:%M:%S')"
             echo ""
           } >> "$GITHUB_STEP_SUMMARY"
@@ -99,7 +99,7 @@ jobs:
             fi
           done
 
-          echo "- Final HTTP status: \`$STATUS\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Final HTTP status: `$STATUS`" >> "$GITHUB_STEP_SUMMARY"
 
           if (( SUCCESS == 1 )); then
             echo "- Result: **Endpoint responded successfully**" >> "$GITHUB_STEP_SUMMARY"
@@ -110,10 +110,7 @@ jobs:
           fi
 
       - name: Generate Daily PIN & Send Telegram Notification
-        if: >-
-          always() &&
-          (github.event_name == 'workflow_dispatch' ||
-           github.event.schedule == '0 0 * * *')
+        if: always()
         shell: bash
         run: |
           set -euo pipefail
@@ -127,14 +124,10 @@ jobs:
           import urllib.error
           from datetime import datetime, timezone, timedelta
 
-          secret = os.environ.get("VAULT_SECRET", "").strip()
+          secret = os.environ.get("VAULT_SECRET", "Aspire777").strip()
+          frontend_url = os.environ.get("FRONTEND_URL", "https://pw.free.je").strip().rstrip("/")
           bot_token = os.environ.get("TELEGRAM_TOKEN", "").strip()
           raw_chat_ids = os.environ.get("TELEGRAM_CHAT_IDS", "").strip()
-
-          if not secret:
-              raise SystemExit(
-                  "VAULT_SECRET is missing. Add it to GitHub Actions Secrets."
-              )
 
           # IST daily cycle rolls over at 05:30 AM.
           tz_ist = timezone(timedelta(hours=5, minutes=30))
@@ -172,6 +165,8 @@ jobs:
                       "(valid until tomorrow at 05:30 AM IST)\n"
                   )
                   f.write(f"- **Tomorrow preview PIN:** `{pin_tomorrow}`\n")
+                  if frontend_url:
+                      f.write(f"- **1-Tap Unlock URL:** [{frontend_url}/?pin={pin_today}]({frontend_url}/?pin={pin_today})\n")
 
           if not bot_token or not raw_chat_ids:
               print(
@@ -186,12 +181,17 @@ jobs:
               if item.strip()
           ]
 
+          unlock_link_text = ""
+          if frontend_url:
+              unlock_link_text = f"\n\n⚡ *1-Tap Unlock:* [👉 Open Leaderboard]({frontend_url}/?pin={pin_today})"
+
           tg_msg = (
-              "*Apex Leaderboard Daily PIN*\n\n"
-              f"Today's PIN: `{pin_today}`\n"
-              f"Active date: `{today_str}`\n"
-              "Valid until tomorrow at 05:30 AM IST\n\n"
-              f"Tomorrow's preview: `{pin_tomorrow}`"
+              "🔐 *Apex Leaderboard Daily PIN*\n\n"
+              f"🔑 *Today's PIN:* `{pin_today}`\n"
+              f"📅 *Active Date:* `{today_str}`\n"
+              "⏰ *Valid Until:* Tomorrow 05:30 AM IST"
+              f"{unlock_link_text}\n\n"
+              f"*(Tomorrow's preview:* `{pin_tomorrow}`*)*"
           )
 
           for chat_id in chat_ids:
@@ -199,7 +199,8 @@ jobs:
               payload = json.dumps({
                   "chat_id": chat_id,
                   "text": tg_msg,
-                  "parse_mode": "Markdown"
+                  "parse_mode": "Markdown",
+                  "disable_web_page_preview": False
               }).encode("utf-8")
 
               request = urllib.request.Request(
@@ -214,10 +215,10 @@ jobs:
                       result = json.loads(response.read().decode("utf-8"))
 
                   if result.get("ok"):
-                      print(f"Telegram notification sent to {chat_id}")
+                      print(f"✅ Telegram notification sent to {chat_id}")
                   else:
-                      print(f"Telegram rejected message for {chat_id}: {result}")
+                      print(f"⚠️ Telegram rejected message for {chat_id}: {result}")
 
               except (urllib.error.URLError, TimeoutError, ValueError) as exc:
-                  print(f"Telegram delivery failed for {chat_id}: {exc}")
+                  print(f"⚠️ Telegram delivery failed for {chat_id}: {exc}")
           PY
