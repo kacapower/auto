@@ -1,188 +1,223 @@
-   name: Keep Hugging Face Space Awake & Daily PIN
-    
-    on:
-      schedule:
-        - cron: "0 */6 * * *" # Every 6 hours (UTC) to keep HF Space awake
-        - cron: "0 0 * * *"   # Daily at 00:00 UTC (05:30 AM IST) for Daily PIN
-      workflow_dispatch:
-        inputs:
-          retries:
-            description: "Retries per request"
-            required: false
-            default: "3"
-            type: string
-          request_timeout:
-            description: "Request timeout in seconds"
-            required: false
-            default: "30"
-            type: string
-    
-    permissions:
-      contents: read
-    
-    concurrency:
-      group: keep-kacapower-da-awake
-      cancel-in-progress: false
-    
-    jobs:
-      wake_space:
-        name: Wake Space & Dispatch Daily PIN
-        runs-on: ubuntu-latest
-        timeout-minutes: 5
-    
-        env:
-          SPACE_ID: kacapower/da
-          SPACE_URL: https://kacapower-da.hf.space/
-          HF_TOKEN: ${{ secrets.HF_TOKEN }}
-          REQUEST_TIMEOUT: ${{ inputs.request_timeout || '30' }}
-          RETRIES: ${{ inputs.retries || '3' }}
-          VAULT_SECRET: "Aspire777"
-          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
-          TELEGRAM_CHAT_IDS: ${{ secrets.TELEGRAM_CHAT_IDS }}
-    
-        steps:
-          # Step 1: Wake and verify Hugging Face Space
-          - name: Wake and verify Space
-            shell: bash
-            run: |
-              set -uo pipefail
-    
-              [[ "$REQUEST_TIMEOUT" =~ ^[0-9]+$ ]] || REQUEST_TIMEOUT=30
-              [[ "$RETRIES" =~ ^[0-9]+$ ]] || RETRIES=3
-              (( REQUEST_TIMEOUT >= 5 && REQUEST_TIMEOUT <= 120 )) || REQUEST_TIMEOUT=30
-              (( RETRIES >= 1 && RETRIES <= 5 )) || RETRIES=3
-    
-              USER_AGENT="Mozilla/5.0 (X11; Linux x86_64) GitHubActions-HF-Space-Waker"
-              STATUS="000"
-              SUCCESS=0
-    
-              echo "## Hugging Face Space wake report" >> "$GITHUB_STEP_SUMMARY"
-              echo "- Space: \`$SPACE_ID\`" >> "$GITHUB_STEP_SUMMARY"
-              echo "- Checked at (UTC): $(date -u '+%Y-%m-%d %H:%M:%S')" >> "$GITHUB_STEP_SUMMARY"
-              echo "" >> "$GITHUB_STEP_SUMMARY"
-    
-              for attempt in $(seq 1 "$RETRIES"); do
-                echo "Attempt $attempt/$RETRIES: $SPACE_URL"
-    
-                CURL_ARGS=(
-                  --location
-                  --user-agent "$USER_AGENT"
-                  --connect-timeout 10
-                  --max-time "$REQUEST_TIMEOUT"
-                  --silent
-                  --show-error
-                  --output /dev/null
-                  --write-out "%{http_code}"
-                )
-    
-                if [[ -n "${HF_TOKEN:-}" ]]; then
-                  CURL_ARGS+=(--header "Authorization: Bearer $HF_TOKEN")
-                fi
-    
-                STATUS=$(curl "${CURL_ARGS[@]}" "$SPACE_URL" 2>/dev/null || true)
-                [[ "$STATUS" =~ ^[0-9]{3}$ ]] || STATUS="000"
-                echo "HTTP status: $STATUS"
-    
-                if [[ "$STATUS" =~ ^[23][0-9][0-9]$ ]]; then
-                  SUCCESS=1
-                  break
-                fi
-    
-                if (( attempt < RETRIES )); then
-                  delay=$(( attempt * 10 ))
-                  echo "Retrying in ${delay}s..."
-                  sleep "$delay"
-                fi
-              done
-    
-              echo "- Final HTTP status: \`$STATUS\`" >> "$GITHUB_STEP_SUMMARY"
-    
-              if (( SUCCESS == 1 )); then
-                echo "- Result: **Endpoint responded successfully**" >> "$GITHUB_STEP_SUMMARY"
-                echo "Space endpoint responded successfully."
-              else
-                echo "- Result: **Wake check failed**" >> "$GITHUB_STEP_SUMMARY"
-                echo "The Space did not return a successful HTTP response after $RETRIES attempt(s)." >&2
-              fi
-    
-          # Step 2: Compute 8-digit PIN and Send Telegram Notification
-          - name: Generate Daily Leaderboard PIN & Dispatch Alert
-            if: always() # Runs even if Space wake is still spinning up
-            shell: bash
-            run: |
-              set -euo pipefail
-              python3 - << 'EOF'
-              import os
-              import hmac
-              import hashlib
-              import json
-              import urllib.request
-              from datetime import datetime, timezone, timedelta
-    
-              secret = os.environ.get('VAULT_SECRET', 'Aspire777').strip()
-              bot_token = os.environ.get('TELEGRAM_TOKEN', '').strip()
-              raw_chat_ids = os.environ.get('TELEGRAM_CHAT_IDS', '').strip()
-    
-              # Timezone: IST (UTC+5:30)
-              tz_ist = timezone(timedelta(hours=5, minutes=30))
-              now_ist = datetime.now(tz_ist)
-    
-              # Rollover window: 05:30 AM IST (subtract 5h 30m)
-              shifted = now_ist - timedelta(hours=5, minutes=30)
-              today_str = shifted.strftime('%Y-%m-%d')
-    
-              # Calculate active PIN for today
-              h_today = hmac.new(secret.encode('utf-8'), today_str.encode('utf-8'), hashlib.sha256).hexdigest()
-              pin_today = f"{int(h_today[:8], 16) % 100000000:08d}"
-    
-              # Calculate preview PIN for tomorrow
-              tomorrow_shifted = shifted + timedelta(days=1)
-              tomorrow_str = tomorrow_shifted.strftime('%Y-%m-%d')
-              h_tom = hmac.new(secret.encode('utf-8'), tomorrow_str.encode('utf-8'), hashlib.sha256).hexdigest()
-              pin_tomorrow = f"{int(h_tom[:8], 16) % 100000000:08d}"
-    
-              print("==========================================")
-              print("🔐 DAILY LEADERBOARD SECURITY PIN")
-              print(f"Cycle Date Window : {today_str} (Resets at 05:30 AM IST)")
-              print(f"ACTIVE 8-DIGIT PIN: {pin_today}")
-              print(f"TOMORROW'S PIN    : {pin_tomorrow}")
-              print("==========================================")
-    
-              summary_file = os.environ.get('GITHUB_STEP_SUMMARY')
-              if summary_file:
-                  with open(summary_file, 'a', encoding='utf-8') as f:
-                      f.write("\n## 🔐 Daily Leaderboard Access PIN\n")
-                      f.write(f"- **Active Passcode:** `{pin_today}`\n")
-                      f.write(f"- **Cycle Date:** `{today_str}` (Valid until tomorrow 05:30 AM IST)\n")
-                      f.write(f"- **Tomorrow's Preview PIN:** `{pin_tomorrow}`\n")
-    
-              # Send Telegram notification if configured
-              if bot_token and raw_chat_ids:
-                  chat_ids = [c.strip() for c in raw_chat_ids.split(',') if c.strip()]
-                  tg_msg = (
-                      f"🔐 *Apex Leaderboard Daily PIN*\n\n"
-                      f"🔑 *Today's PIN:* `{pin_today}`\n"
-                      f"📅 *Active Date:* `{today_str}`\n"
-                      f"⏰ *Valid Until:* Tomorrow 05:30 AM IST\n\n"
-                      f"*(Tomorrow's Preview:* `{pin_tomorrow}`*)*"
+
+name: Keep Hugging Face Space Awake & Daily PIN
+
+on:
+  schedule:
+    - cron: "0 */6 * * *" # Every 6 hours (UTC)
+    - cron: "0 0 * * *"   # Daily at 00:00 UTC = 05:30 AM IST
+  workflow_dispatch:
+    inputs:
+      retries:
+        description: "Retries per request"
+        required: false
+        default: "3"
+        type: string
+      request_timeout:
+        description: "Request timeout in seconds"
+        required: false
+        default: "30"
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: keep-kacapower-da-awake
+  cancel-in-progress: false
+
+jobs:
+  wake_space:
+    name: Wake Space & Dispatch Daily PIN
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    env:
+      SPACE_ID: kacapower/da
+      SPACE_URL: https://kacapower-da.hf.space/
+      HF_TOKEN: ${{ secrets.HF_TOKEN }}
+      REQUEST_TIMEOUT: ${{ inputs.request_timeout || '30' }}
+      RETRIES: ${{ inputs.retries || '3' }}
+      VAULT_SECRET: ${{ secrets.VAULT_SECRET }}
+      TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+      TELEGRAM_CHAT_IDS: ${{ secrets.TELEGRAM_CHAT_IDS }}
+
+    steps:
+      - name: Wake and verify Space
+        shell: bash
+        run: |
+          set -uo pipefail
+
+          [[ "$REQUEST_TIMEOUT" =~ ^[0-9]+$ ]] || REQUEST_TIMEOUT=30
+          [[ "$RETRIES" =~ ^[0-9]+$ ]] || RETRIES=3
+
+          (( REQUEST_TIMEOUT >= 5 && REQUEST_TIMEOUT <= 120 )) || REQUEST_TIMEOUT=30
+          (( RETRIES >= 1 && RETRIES <= 5 )) || RETRIES=3
+
+          USER_AGENT="Mozilla/5.0 (X11; Linux x86_64) GitHubActions-HF-Space-Waker"
+          STATUS="000"
+          SUCCESS=0
+
+          {
+            echo "## Hugging Face Space wake report"
+            echo "- Space: \`$SPACE_ID\`"
+            echo "- Checked at (UTC): $(date -u '+%Y-%m-%d %H:%M:%S')"
+            echo ""
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          for attempt in $(seq 1 "$RETRIES"); do
+            echo "Attempt $attempt/$RETRIES: $SPACE_URL"
+
+            CURL_ARGS=(
+              --location
+              --user-agent "$USER_AGENT"
+              --connect-timeout 10
+              --max-time "$REQUEST_TIMEOUT"
+              --silent
+              --show-error
+              --output /dev/null
+              --write-out "%{http_code}"
+            )
+
+            if [[ -n "${HF_TOKEN:-}" ]]; then
+              CURL_ARGS+=(--header "Authorization: Bearer $HF_TOKEN")
+            fi
+
+            STATUS=$(curl "${CURL_ARGS[@]}" "$SPACE_URL" 2>/dev/null || true)
+            [[ "$STATUS" =~ ^[0-9]{3}$ ]] || STATUS="000"
+
+            echo "HTTP status: $STATUS"
+
+            if [[ "$STATUS" =~ ^[23][0-9][0-9]$ ]]; then
+              SUCCESS=1
+              break
+            fi
+
+            if (( attempt < RETRIES )); then
+              delay=$((attempt * 10))
+              echo "Retrying in ${delay}s..."
+              sleep "$delay"
+            fi
+          done
+
+          echo "- Final HTTP status: \`$STATUS\`" >> "$GITHUB_STEP_SUMMARY"
+
+          if (( SUCCESS == 1 )); then
+            echo "- Result: **Endpoint responded successfully**" >> "$GITHUB_STEP_SUMMARY"
+            echo "Space endpoint responded successfully."
+          else
+            echo "- Result: **Wake check failed**" >> "$GITHUB_STEP_SUMMARY"
+            echo "Wake check failed after $RETRIES attempts." >&2
+          fi
+
+      - name: Generate Daily PIN & Send Telegram Notification
+        if: >-
+          always() &&
+          (github.event_name == 'workflow_dispatch' ||
+           github.event.schedule == '0 0 * * *')
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          python3 - <<'PY'
+          import os
+          import hmac
+          import hashlib
+          import json
+          import urllib.request
+          import urllib.error
+          from datetime import datetime, timezone, timedelta
+
+          secret = os.environ.get("VAULT_SECRET", "").strip()
+          bot_token = os.environ.get("TELEGRAM_TOKEN", "").strip()
+          raw_chat_ids = os.environ.get("TELEGRAM_CHAT_IDS", "").strip()
+
+          if not secret:
+              raise SystemExit(
+                  "VAULT_SECRET is missing. Add it to GitHub Actions Secrets."
+              )
+
+          # IST daily cycle rolls over at 05:30 AM.
+          tz_ist = timezone(timedelta(hours=5, minutes=30))
+          now_ist = datetime.now(tz_ist)
+          shifted = now_ist - timedelta(hours=5, minutes=30)
+
+          today_str = shifted.strftime("%Y-%m-%d")
+          tomorrow_str = (shifted + timedelta(days=1)).strftime("%Y-%m-%d")
+
+          def generate_pin(date_string):
+              digest = hmac.new(
+                  secret.encode("utf-8"),
+                  date_string.encode("utf-8"),
+                  hashlib.sha256
+              ).hexdigest()
+              return f"{int(digest[:8], 16) % 100000000:08d}"
+
+          pin_today = generate_pin(today_str)
+          pin_tomorrow = generate_pin(tomorrow_str)
+
+          print("==========================================")
+          print("DAILY LEADERBOARD SECURITY PIN")
+          print(f"Cycle date: {today_str}")
+          print(f"Active PIN: {pin_today}")
+          print(f"Tomorrow preview PIN: {pin_tomorrow}")
+          print("==========================================")
+
+          summary_file = os.environ.get("GITHUB_STEP_SUMMARY")
+          if summary_file:
+              with open(summary_file, "a", encoding="utf-8") as f:
+                  f.write("\n## Daily Leaderboard Access PIN\n")
+                  f.write(f"- **Active PIN:** `{pin_today}`\n")
+                  f.write(
+                      f"- **Cycle date:** `{today_str}` "
+                      "(valid until tomorrow at 05:30 AM IST)\n"
                   )
-                  for cid in chat_ids:
-                      try:
-                          url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
-                          payload = json.dumps({
-                              "chat_id": cid,
-                              "text": tg_msg,
-                              "parse_mode": "Markdown"
-                          }).encode("utf-8")
-                          req = urllib.request.Request(url, data=payload, headers={"Content-Type": "application/json"})
-                          with urllib.request.urlopen(req, timeout=10) as resp:
-                              if resp.status == 200:
-                                  print(f"✅ Telegram notification dispatched to {cid}")
-                              else:
-                                  print(f"⚠️ Telegram returned status: {resp.status}")
-                      except Exception as e:
-                          print(f"⚠️ Telegram dispatch failed for {cid}: {e}")
-              else:
-                  print("ℹ️ Telegram secrets (TELEGRAM_TOKEN / TELEGRAM_CHAT_IDS) not set. PIN logged above & in summary.")
-              EOF
-  ──────
+                  f.write(f"- **Tomorrow preview PIN:** `{pin_tomorrow}`\n")
+
+          if not bot_token or not raw_chat_ids:
+              print(
+                  "Telegram not configured; PIN is available in the "
+                  "workflow logs and summary."
+              )
+              raise SystemExit(0)
+
+          chat_ids = [
+              item.strip()
+              for item in raw_chat_ids.split(",")
+              if item.strip()
+          ]
+
+          tg_msg = (
+              "*Apex Leaderboard Daily PIN*\n\n"
+              f"Today's PIN: `{pin_today}`\n"
+              f"Active date: `{today_str}`\n"
+              "Valid until tomorrow at 05:30 AM IST\n\n"
+              f"Tomorrow's preview: `{pin_tomorrow}`"
+          )
+
+          for chat_id in chat_ids:
+              url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
+              payload = json.dumps({
+                  "chat_id": chat_id,
+                  "text": tg_msg,
+                  "parse_mode": "Markdown"
+              }).encode("utf-8")
+
+              request = urllib.request.Request(
+                  url,
+                  data=payload,
+                  headers={"Content-Type": "application/json"},
+                  method="POST"
+              )
+
+              try:
+                  with urllib.request.urlopen(request, timeout=10) as response:
+                      result = json.loads(response.read().decode("utf-8"))
+
+                  if result.get("ok"):
+                      print(f"Telegram notification sent to {chat_id}")
+                  else:
+                      print(f"Telegram rejected message for {chat_id}: {result}")
+
+              except (urllib.error.URLError, TimeoutError, ValueError) as exc:
+                  print(f"Telegram delivery failed for {chat_id}: {exc}")
+          PY
